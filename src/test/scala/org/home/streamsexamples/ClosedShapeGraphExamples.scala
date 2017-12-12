@@ -2,11 +2,10 @@ package org.home.streamsexamples
 
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
-import akka.{Done, NotUsed}
+import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, ClosedShape, ThrottleMode, UniformFanOutShape}
-import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, RunnableGraph, Sink, Source}
-import org.home.streamsexamples.TestFixture.rememberingSink
+import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, RunnableGraph, Sink, Source}
+import akka.stream.{ActorMaterializer, ClosedShape, UniformFanOutShape}
 import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
 
@@ -48,19 +47,66 @@ object ClosedShapeGraphExamples extends App with ScalaFutures with Matchers {
 
     graph.run()
 
-    countDownLatch.await(10, TimeUnit.MILLISECONDS)
+    countDownLatch.await(100, TimeUnit.MILLISECONDS)
 
     odds.toList shouldBe Seq(1, 3, 5)
     evens.toList shouldBe Seq(2, 4, 6)
   }
 
+  {
+    val countDownLatch = new CountDownLatch(6)
+    val source = Source(1 to 3)
+
+    val graph: RunnableGraph[NotUsed] = RunnableGraph.fromGraph(GraphDSL.create() { implicit b ⇒
+      import GraphDSL.Implicits._
+
+      val bcast = b.add(Broadcast[Int](2))
+      val merge = b.add(Merge[Int](2))
+
+      val sink = Sink.foreach[Int] { _ ⇒
+        countDownLatch.countDown()
+      }
+
+      source ~> bcast.in
+
+      bcast.out(0) ~> Flow[Int].map(_ + 1) ~> merge
+      bcast.out(1) ~> Flow[Int].map(_ + 2) ~> merge
+
+      merge.out ~> sink
+
+      ClosedShape
+    })
+
+    graph.run()
+
+    countDownLatch.await(100, TimeUnit.MILLISECONDS)
+  }
+
+  {
+    val sink1 = Sink.head[Int]
+    val sink2 = Sink.head[Int]
+
+    val graph: RunnableGraph[(Future[Int], Future[Int])] =
+      RunnableGraph.fromGraph(GraphDSL.create(sink1, sink2)((_, _)) { implicit b ⇒ (s1, s2) ⇒
+        import GraphDSL.Implicits._
+
+        val bcast = b.add(Broadcast[Int](2))
+
+        Source.single(1) ~> bcast.in
+
+        bcast.out(0) ~> s1.in
+        bcast.out(1) ~> s2.in
+
+        ClosedShape
+      })
+
+    val results: (Future[Int], Future[Int]) = graph.run()
+    results._1.futureValue shouldBe 1
+    results._2.futureValue shouldBe 1
+
+  }
+
   system.terminate().foreach { _ ⇒
     println("Terminated")
   }
-
-  private def withFlow[T](flow: Flow[Int, T, NotUsed]): Seq[T] =
-    Source(1 to 10)
-      .via(flow)
-      .runWith(rememberingSink())
-      .futureValue
 }
