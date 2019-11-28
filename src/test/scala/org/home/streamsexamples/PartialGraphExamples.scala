@@ -31,7 +31,7 @@ object PartialGraphExamples extends App with ScalaFutures with Matchers {
 
     val resultSink = Sink.head[Int]
 
-    val graph: RunnableGraph[Future[Int]] = RunnableGraph.fromGraph(GraphDSL.create(resultSink) {
+    val graph: Graph[ClosedShape.type, Future[Int]] = GraphDSL.create(resultSink) {
       implicit b ⇒ sink ⇒
         import GraphDSL.Implicits._
 
@@ -44,9 +44,10 @@ object PartialGraphExamples extends App with ScalaFutures with Matchers {
 
         pm3.out ~> sink.in
         ClosedShape
-    })
+    }
+    val runnableGraph: RunnableGraph[Future[Int]] = RunnableGraph.fromGraph(graph)
 
-    graph.run().futureValue shouldBe 3
+    runnableGraph.run().futureValue shouldBe 3
   }
 
   {

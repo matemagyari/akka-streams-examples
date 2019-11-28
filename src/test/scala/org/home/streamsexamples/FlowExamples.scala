@@ -57,10 +57,12 @@ object FlowExamples extends App with ScalaFutures with Matchers {
       .collect { case x if x % 3 == 0 ⇒ x }
       .mapConcat(i ⇒ Seq(i))
 
-    Source(1 to 10)
+    val result = Source(1 to 10)
       .via(flow)
-      .to(rememberingSink())
-      .run()
+      .runWith(rememberingSink())
+      .futureValue
+
+    result shouldBe Seq(3, 9)
   }
 
   //mapAsync

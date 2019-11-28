@@ -1,17 +1,12 @@
 package org.home.streamsexamples
 
-import java.util.concurrent.{CountDownLatch, TimeUnit}
-
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Keep, RunnableGraph, Sink, Source}
-import akka.stream.{ActorMaterializer, ClosedShape, UniformFanOutShape}
-import org.home.streamsexamples.TestFixture.rememberingSink
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Keep, RunnableGraph, Sink, Source}
 import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
 
-import scala.collection.immutable.Seq
-import scala.collection.mutable
 import scala.concurrent.Future
 
 object GeneralExamples extends App with ScalaFutures with Matchers {
@@ -39,9 +34,4 @@ object GeneralExamples extends App with ScalaFutures with Matchers {
     println("Terminated")
   }
 
-  private def withFlow[T](flow: Flow[Int, T, NotUsed]): Seq[T] =
-    Source(1 to 10)
-      .via(flow)
-      .runWith(rememberingSink())
-      .futureValue
 }
